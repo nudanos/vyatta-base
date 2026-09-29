@@ -25,4 +25,4 @@ override_dh_auto_configure:
 	dh_auto_configure -- --prefix=/opt/vyatta --sysconfdir=/opt/vyatta/etc --mandir=/usr/share/man CFLAGS="$(CFLAGS)"
 
 override_dh_install:
-	dh_install --fail-missing
+	dh_install
