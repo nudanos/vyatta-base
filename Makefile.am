@@ -12,7 +12,7 @@ bin_SCRIPTS	+= scripts/remove-packages
 
 sbin_SCRIPTS    = scripts/vyatta-config-default
 
-libsystemddir = /lib/systemd
+libsystemddir = /usr/lib/systemd
 
 cpiop = find  . ! -regex '\(.*~\|.*\.bak\|.*\.swp\|.*\#.*\#\)' -print0 | \
   cpio -0pd
