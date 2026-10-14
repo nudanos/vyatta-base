@@ -1,3 +1,12 @@
+vyatta-base (1.12) trixie; urgency=medium
+
+  * opt-vyatta-etc-config.mount: order before system-
+    preconfigure.service; 1000-init-bootfile raced the /config bind
+    mount and could overwrite /config/config.boot with the default at
+    boot (tests/config-mount-order.sh).
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Wed, 14 Oct 2026 13:34:36 +0000
+
 vyatta-base (1.11) trixie; urgency=medium
 
   * Port to Debian 13 (trixie): debhelper-compat 13, Standards-Version 4.7.2, Rules-Requires-Root, NuDanOS Vcs.

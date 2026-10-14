@@ -8,7 +8,7 @@ Description=Legacy Vyatta configuration path mount
 # more convenient location.
 #
 Documentation=http://www.freedesktop.org/wiki/Software/systemd/APIFileSystems
-Before=system-configure.service
+Before=system-preconfigure.service system-configure.service
 ConditionPathExists=/config/.vyatta_config
 DefaultDependencies=no
 
