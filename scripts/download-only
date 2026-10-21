@@ -27,10 +27,10 @@ remove_2Bdowngraded_pkgs() {
 
  # get list of all vyatta-built packages i.e. packages with
  # vyatta in either name or version of package
- cat /opt/vyatta/etc/deb-versions.txt | grep vyatta > $vyatta_pkgs_list
+ grep vyatta /opt/vyatta/etc/deb-versions.txt > "$vyatta_pkgs_list"
 
- package_names=(`cat $vyatta_pkgs_list | awk {'print $1'}`)
- package_versions=(`cat $vyatta_pkgs_list | awk {'print $2'}`)
+ mapfile -t package_names < <(awk '{print $1}' "$vyatta_pkgs_list")
+ mapfile -t package_versions < <(awk '{print $2}' "$vyatta_pkgs_list")
 
  num_package_names=${#package_names[*]}
  num_package_versions=${#package_versions[*]}
@@ -40,35 +40,34 @@ remove_2Bdowngraded_pkgs() {
   exit 1
  fi
 
- rm_pkgs_list=""
+ rm_pkgs=()
  i=0
  # unset 'exit on non-true value' mode as comparing versions below
  set +e
- while [ $i -lt $num_package_names ]; do
+ while [ "$i" -lt "$num_package_names" ]; do
   # get current version for package
-  current_pkg_ver=`dpkg-query --showformat='${Version}' --show ${package_names[$i]}`
+  current_pkg_ver=$(dpkg-query --showformat='${Version}' --show "${package_names[$i]}")
 
   # check if version in new release is less then current version
-  new_package_version=`apt-cache showpkg ${package_names[$i]} | grep 'packages\.vyatta\.com' | grep -v '^ ' | awk {'print $1'}`
-  dpkg --compare-versions $new_package_version lt \
-                        $current_pkg_ver >/dev/null 2>&1
-  if [ `echo $?` == 0 ]; then
-   echo package ${package_names[$i]} needs to be removed for downgrade
-   rm_pkgs_list=$rm_pkgs_list" "${package_names[$i]}
+  new_package_version=$(apt-cache showpkg "${package_names[$i]}" | grep 'packages\.vyatta\.com' | grep -v '^ ' | awk '{print $1}')
+  if dpkg --compare-versions "$new_package_version" lt \
+                        "$current_pkg_ver" >/dev/null 2>&1; then
+   echo "package ${package_names[$i]} needs to be removed for downgrade"
+   rm_pkgs+=("${package_names[$i]}")
   fi
-  let i++
+  i=$((i + 1))
  done
  # reset to global 'exit on non-true value' mode
  set -e
  
  # remove packages
- if [ "$rm_pkgs_list" != "" ]; then
-  dpkg --force-depends --remove $rm_pkgs_list
+ if [ ${#rm_pkgs[@]} -gt 0 ]; then
+  dpkg --force-depends --remove "${rm_pkgs[@]}"
   pkgs_removed="yes"
  else
   echo Vyatta full-upgrade status - No packages to be downgraded
  fi
- rm -f $vyatta_pkgs_list
+ rm -f "$vyatta_pkgs_list"
 
 }
 
@@ -78,20 +77,18 @@ download_virt_pkgs() {
   virt_packages=""
   # if running kernel is a virt kernel; download virt packages
   # explicitly since they aren't listed in deb-versions.txt
-  uname -r | grep -q virt
-  is_virt_kern=`echo $?`
-  if [ "$is_virt_kern" = "0" ]; then
+  if uname -r | grep -q virt; then
     virt_suffix='virt'
 
-    virt_kern=`grep linux-image /opt/vyatta/etc/deb-versions.txt \
-| awk '{print $1}'`
+    virt_kern=$(grep linux-image /opt/vyatta/etc/deb-versions.txt \
+| awk '{print $1}')
 
-    ovm_mod=`grep linux-image /opt/vyatta/etc/deb-versions.txt \
-| sed 's/linux\-image/open\-vm\-modules/' | awk '{print $1}'`
+    ovm_mod=$(grep linux-image /opt/vyatta/etc/deb-versions.txt \
+| sed 's/linux-image/open-vm-modules/' | awk '{print $1}')
 
     virt_kern="$virt_kern-$virt_suffix"
     ovm_mod="$ovm_mod-$virt_suffix"
-    virt_packages=$virt_kern" "$ovm_mod" "open-vm-tools
+    virt_packages="$virt_kern $ovm_mod open-vm-tools"
   fi
   echo "$virt_packages"
   # reset to global 'exit on non-true value' mode
@@ -101,8 +98,8 @@ download_virt_pkgs() {
 df=noninteractive
 export DEBIAN_FRONTEND="$df"
 
-old_version=`dpkg-query --showformat='${Version}' --show vyatta-version`
-new_version=`apt-cache showpkg vyatta-version | grep 'packages\.vyatta\.com' | grep -v '^ ' | awk {'print $1'}`
+old_version=$(dpkg-query --showformat='${Version}' --show vyatta-version)
+new_version=$(apt-cache showpkg vyatta-version | grep 'packages\.vyatta\.com' | grep -v '^ ' | awk '{print $1}')
 
 case "$old_version" in 
 [0-3]* | VSE* ) # SE versions were numeric before kenwood release
@@ -130,11 +127,11 @@ VSE* | VC* )
 esac
 
 # now you should be able to install the new vyatta-version in any case
-new_version=`apt-get --dry-run install vyatta-version|grep '^Inst'|sed -e 's/.*(//' -e 's/ .*//'`
+new_version=$(apt-get --dry-run install vyatta-version|grep '^Inst'|sed -e 's/.*(//' -e 's/ .*//')
 # if new_version is empty now then don't proceed
 if [ -z "$new_version" ]; then
- already_new_version=`apt-get --dry-run install vyatta-version | \
-		grep 'vyatta-version is already the newest version'`
+ already_new_version=$(apt-get --dry-run install vyatta-version | \
+		grep 'vyatta-version is already the newest version')
  if [ -z "$already_new_version" ]; then
   echo ERROR: Unable to retrieve latest vyatta-version package
   exit 1
@@ -151,18 +148,16 @@ apt-get clean
 
 # 400M disk space is required for full-upgrade on disk install
 required=400
-set +e
-/opt/vyatta/bin/vyatta-show-version | grep 'Boot via' | grep -q image
-image_install=`echo $?`
-if [ $image_install == 0 ]; then
+if /opt/vyatta/bin/vyatta-show-version | grep 'Boot via' | grep -q image; then
   # 800M disk space is required for full-upgrade on image based install
   required=800
 fi
-set -e
 
-free=`df /var/cache/apt/archives|tail -1|awk '{print $4}'`
-free=`expr "$free" / 1000`
-if [ "$free" -a "$free" -lt $required ]
+free=$(df /var/cache/apt/archives|tail -1|awk '{print $4}')
+if [ -n "$free" ]; then
+	free=$((free / 1000))
+fi
+if [ -n "$free" ] && [ "$free" -lt "$required" ]
 then
 	echo "$required Megabytes required for full upgrade, but only $free available."
 	echo "Please free up more disk space and try again."
@@ -172,7 +167,7 @@ fi
 echo -e "$stars\nVyatta full-upgrade status - Installing vyatta-version package"
 apt-get install vyatta-version
 
-install_list=`awk '{print $1}' /opt/vyatta/etc/deb-versions.txt|tr '\n' ' '`
+install_list=$(awk '{print $1}' /opt/vyatta/etc/deb-versions.txt|tr '\n' ' ')
 
 if [ ! "$install_list" ]
 then
@@ -189,8 +184,9 @@ if [ "$pkgs_removed" != "no" ]; then
 fi
 
 virt_pkgs=$(download_virt_pkgs)
-install_list=$install_list" "$virt_pkgs
+install_list="$install_list $virt_pkgs"
 echo -e "$stars\nVyatta full-upgrade status - Downloading updates..."
+# shellcheck disable=SC2086 # reason: $install_list is a list of package names, split on purpose
 apt-get -y -f -d install $install_list | tee /tmp/install$$
 echo -e "$stars\nVyatta full-upgrade status - Downloading any dependencies..."
 apt-get -y -f -d dist-upgrade | tee /tmp/upgrade$$

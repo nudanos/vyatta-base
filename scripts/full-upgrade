@@ -9,16 +9,16 @@ stars="*************************************************************************
 
 # picked up from install-system script
 get_response () {
-  ldefault=$(echo "$1" | tr [:upper:] [:lower:])
-  loptions=$(echo "$2" | tr [:upper:] [:lower:])
+  ldefault=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  loptions=$(echo "$2" | tr '[:upper:]' '[:lower:]')
 
   # get the response from the user
-  read myresponse
-  myresponse=$(echo "$myresponse" | tr [:upper:] [:lower:])
+  read -r myresponse
+  myresponse=$(echo "$myresponse" | tr '[:upper:]' '[:lower:]')
 
   # Check to see if the user accepts the default
   if [ -z "$myresponse" ]; then
-    echo -n $ldefault
+    echo -n "$ldefault"
   # if we are passing in options to check, make sure response is a valid option
   elif [ -n "$loptions" ]; then
     for token in $loptions
@@ -85,15 +85,11 @@ fi
 stop_parent_fullupgrade() {
  revert_to_default_policy
  # need to stop parent full-upgrade script if one exists
- array=(`ps ax | grep "/usr/bin/full-upgrade\|/opt/vyatta/bin/full-upgrade" \
-	| grep -v grep | awk {'print $1'}`)
- len=${#array[*]}
- i=0
- while [ $i -lt $len ]; do
-  if [ "${array[$i]}" != "$$" ]; then
-   kill -9 ${array[$i]} > /dev/null 2>&1
+ mapfile -t array < <(pgrep -f "/usr/bin/full-upgrade|/opt/vyatta/bin/full-upgrade")
+ for pid in "${array[@]}"; do
+  if [ "$pid" != "$$" ]; then
+   kill -9 "$pid" > /dev/null 2>&1
   fi
- let i++
  done
  # remove print-repo tmp file
  rm -f /tmp/print-repo-check-upgrade > /dev/null 2>&1
@@ -109,10 +105,9 @@ fix_missing_files() {
     then
       cp /etc/squid3/squid.conf.bak /etc/squid3/squid.conf
     else
-      mkdir -p /etc/squid3
-      touch /etc/squid3/squid.conf
+      mkdir -p /etc/squid3 && touch /etc/squid3/squid.conf
     fi
-    result=`echo $?`
+    result=$?
     if [ "$result" != "0" ]; then
       echo 'failed to create missing squid3 config file'
       exit 1
@@ -123,7 +118,7 @@ fix_missing_files() {
 check_repo() {
 
 # if no repos configured in sources.list then fail out
-num_repos=`cat /etc/apt/sources.list | awk {'print $1'} | grep "^deb$" | wc -l`
+num_repos=$(awk '{print $1}' /etc/apt/sources.list | grep -c "^deb$")
 if [ "$num_repos" == "0" ]; then
  echo No repository configured to retrieve packages
  exit 1
@@ -135,9 +130,9 @@ dpkg --configure -a || exit $?
 echo -e "$stars\nVyatta full-upgrade status - Resynchronizing package index files"
 # if unable to run apt-get update succesfully, report error
 apt-get update >/tmp/$$-sim-apt-update 2>&1
-result=`echo $?`
-count_failed=`grep -i 'FAILED' /tmp/$$-sim-apt-update | wc -l`
-if [ "$result" != "0" -o "$count_failed" != "0" ]; then
+result=$?
+count_failed=$(grep -ci 'FAILED' /tmp/$$-sim-apt-update)
+if [ "$result" != "0" ] || [ "$count_failed" != "0" ]; then
   echo -e "\nUnable to resynchronize package index files from their sources"
   echo "This may be due to one of the following reasons :"
   echo " * unable to resolve repository hostname"
@@ -187,28 +182,29 @@ fi
 
 trap stop_parent_fullupgrade INT TERM EXIT
 
-if [ `whoami` != 'root' ] ; then
+if [ "$(whoami)" != 'root' ] ; then
     echo "full-upgrade must be run with root privileges."
     exit 1
 fi
 
 check_repo
-cd /tmp
+cd /tmp || exit 1
 prevent_start_on_install
 fix_missing_files
-check-upgrade $* || exit
+check-upgrade "$@" || exit
 full_upgrade_experimental_msg
 
 OPTION="$1"
-[ "$OPTION" ] || OPTION=`ps l|grep -v grep|grep 'full-upgrade -'|sed 's,.*full-upgrade ,,'`
+# shellcheck disable=SC2009 # reason: ps l looks only at this terminal's processes; pgrep would search them all
+[ "$OPTION" ] || OPTION=$(ps l|grep -v grep|grep 'full-upgrade -'|sed 's,.*full-upgrade ,,')
 case "$OPTION" in
  -i )
 	download-only "$OPTION" || exit $?
-	/opt/vyatta/bin/_full-upgrade $OPTION
+	/opt/vyatta/bin/_full-upgrade "$OPTION"
 	;;
 
  -k )
-	echo ===full-upgrade "$OPTION"===
+	echo "===full-upgrade $OPTION==="
 	uptime
 	date
 	download-only "$OPTION" || exit $?
@@ -225,9 +221,9 @@ case "$OPTION" in
 	hupfile=/root/nohup$$.out
 	mkdir bak-$$
 	mv /root/full-upgrade* bak-$$/.
-	>/root/full-upgrade.log
+	: >/root/full-upgrade.log
 	tail -f /root/full-upgrade.log&
-	nohup /opt/vyatta/bin/_full-upgrade $OPTION>&$hupfile
+	nohup /opt/vyatta/bin/_full-upgrade "$OPTION" &>"$hupfile"
 	sleep 10
 	cat /root/nohup$$.out
 	rm -rf /tmp/full-upgrade.lock

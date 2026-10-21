@@ -12,9 +12,11 @@ systemd_dir="/lib/systemd/system"
 swap_target_wants="${DESTDIR}/swap.target.wants"
 
 gen_systemd_swap_mount () {
-	local path=${1:?Epic failure}
-	local sysd_fp=${2:?Colossal failure}
-	cat <<EOF > ${systemd_dir}/$sysd_fp
+	# shellcheck disable=SC3043 # reason: Debian Policy 10.4 allows local in /bin/sh scripts
+	local path="${1:?Epic failure}"
+	# shellcheck disable=SC3043 # reason: Debian Policy 10.4 allows local in /bin/sh scripts
+	local sysd_fp="${2:?Colossal failure}"
+	cat <<EOF > "${systemd_dir}/$sysd_fp"
 [Unit]
 Description=Vyatta swap space mounter
 
@@ -31,17 +33,18 @@ fi
 if [ -e /dev/disk/by-partlabel/linux-swap ]; then
 	mkdir -p "${swap_target_wants}"
 	path='/dev/disk/by-partlabel/linux-swap';
-	sysd_fp=$(systemd-escape -p --suffix=swap $path)
-	gen_systemd_swap_mount $path $sysd_fp
+	sysd_fp=$(systemd-escape -p --suffix=swap "$path")
+	gen_systemd_swap_mount "$path" "$sysd_fp"
 	ln -sf "$systemd_dir/$sysd_fp" "${swap_target_wants}/"
 fi
 
-if [ -e /dev/disk/by-id/md-name*vRouter-part1 ]; then
-	if parted /dev/disk/by-id/md-name*vRouter-part1 p 2>/dev/null | grep -q linux-swap; then
-		path=$(ls /dev/disk/by-id/md-name*vRouter-part1)
-		sysd_fp=$(systemd-escape -p --suffix=swap $path)
+# a loop, not [ -e glob ]: [ fails when the glob matches more than one array
+for path in /dev/disk/by-id/md-name*vRouter-part1; do
+	[ -e "$path" ] || continue
+	if parted "$path" p 2>/dev/null | grep -q linux-swap; then
+		sysd_fp=$(systemd-escape -p --suffix=swap "$path")
 		mkdir -p "${swap_target_wants}"
-		gen_systemd_swap_mount $path $sysd_fp
+		gen_systemd_swap_mount "$path" "$sysd_fp"
 		ln -sf "${systemd_dir}/$sysd_fp" "${swap_target_wants}/"
 	fi
-fi
+done

@@ -2,6 +2,7 @@
 
 set -e
 
+# shellcheck disable=SC3013 # reason: dash, /bin/sh on Debian, implements test -ef
 if [ /opt/vyatta/etc/config -ef /config ]; then
     echo "Skipping copy of template files."
     exit 0

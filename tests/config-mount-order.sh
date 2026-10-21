@@ -9,9 +9,9 @@
 # the default does not have). The mount must be ordered before the service.
 set -eu
 unit=systemd/system/opt-vyatta-etc-config.mount
-before=$(sed -n 's/^Before=//p' "$unit" | tr ' ' '\n')
-if ! printf '%s\n' "$before" | grep -qx system-preconfigure.service; then
-    echo "config-mount-order: $unit must have Before=system-preconfigure.service (has: $(echo $before))" >&2
+before=$(sed -n 's/^Before=//p' "$unit")
+if ! printf '%s\n' "$before" | tr ' ' '\n' | grep -qx system-preconfigure.service; then
+    echo "config-mount-order: $unit must have Before=system-preconfigure.service (has: $before)" >&2
     exit 1
 fi
 echo "config-mount-order: OK"

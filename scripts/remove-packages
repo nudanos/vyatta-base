@@ -4,9 +4,10 @@
 # Date: 2007
 # Description:
 
-which /opt/vyatta/bin/vyatta-show-version >/dev/null && /opt/vyatta/bin/vyatta-show-version all>/tmp/$$
-
-l=`grep '^Aii' /tmp/$$ | awk '{ print $2 }'`
+l=
+if [ -x /opt/vyatta/bin/vyatta-show-version ]; then
+	l=$(/opt/vyatta/bin/vyatta-show-version all | awk '/^Aii/ { print $2 }')
+fi
 
 cat <<EOF
 The Vyatta Upgrade procedure detected packages installed on
@@ -27,15 +28,13 @@ The extra packages are listed below:
 
 EOF
 
-for i in $l
-do
-	echo $i
-done
+printf '%s\n' "$l"
 
-echo -n "Would you like to remove the extra packages listed above [Y/N]? "
-read j
+printf "Would you like to remove the extra packages listed above [Y/N]? "
+read -r j
 case "$j" in
 [yY]|[yY][eE][sS] )
+	# shellcheck disable=SC2086 # reason: $l is a list of package names, split on purpose
 	apt-get --force-yes -y remove $l
 	;;
 *)

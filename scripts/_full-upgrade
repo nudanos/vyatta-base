@@ -47,8 +47,8 @@ case "$1" in
 	$install_only && $remove_packages
 	revert_to_default_policy
 	echo You need to reboot the system to complete the upgrade
-	echo -n "Reboot now? (Y/N) [Y]: "
-	read j
+	printf "Reboot now? (Y/N) [Y]: "
+	read -r j
 	case "$j" in
 	y|Y|[yY][eE][sS]|"" )
 		wait_for_reboot
@@ -60,8 +60,9 @@ case "$1" in
 	;;
 esac
 
-echo **** Upgrade terminated early
-echo **** run dpkg -l to determine
-echo **** the state of the packages
-echo **** on your system.
+# quoted: unquoted, **** is a glob that lists the current directory
+echo '**** Upgrade terminated early'
+echo '**** run dpkg -l to determine'
+echo '**** the state of the packages'
+echo '**** on your system.'
 exit 1
