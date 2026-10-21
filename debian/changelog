@@ -1,3 +1,13 @@
+vyatta-base (1.13) trixie; urgency=medium
+
+  * Code-quality lint fixes (distro docs/porting.md): analyzer findings
+    fixed, see the git log.
+  * check-upgrade runs under bash, which it was written for; under
+    /bin/sh its arrays were a syntax error.
+  * The swap generator handles more than one md-name*vRouter-part1 match.
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Wed, 21 Oct 2026 07:01:13 +0000
+
 vyatta-base (1.12) trixie; urgency=medium
 
   * opt-vyatta-etc-config.mount: order before system-
